@@ -1,28 +1,30 @@
 import { PricingRule } from './Rule';
-import { Product } from '../models/Product';
+import { productCatalog } from '../productCatalog';
 
 type RuleConfig = {
+  sku: string;
   minQty: number;
   discountedPrice: number;
 };
 
 export class BulkDiscountRule implements PricingRule {
-  private rules: Map<string, RuleConfig> = new Map();
+  sku: string;
+  minQty: number;
+  discountedPrice: number;
 
-  addRule(sku: string, minQty: number, discountedPrice: number): void {
-    this.rules.set(sku, { minQty, discountedPrice });
+  constructor(config: RuleConfig) {
+    this.sku = config.sku;
+    this.minQty = config.minQty;
+    this.discountedPrice = config.discountedPrice;
   }
 
-  apply(item: Product, qty: number): number {
-    const sku = item.sku;
-    const rule = this.rules.get(sku);
-
-    if (!rule) {
-      return parseFloat((item.price * qty).toFixed(2));
+  calculatePrice(qty: number): number {
+    const product = productCatalog[this.sku];
+    if (!product) {
+      throw new Error(`Unknown SKU: ${this.sku}`);
     }
-
-    const useDiscount = qty >= rule.minQty;
-    const price = useDiscount ? rule.discountedPrice : item.price;
+    const useDiscount = qty >= this.minQty;
+    const price = useDiscount ? this.discountedPrice : product.price;
     return parseFloat((qty * price).toFixed(2));
   }
 }

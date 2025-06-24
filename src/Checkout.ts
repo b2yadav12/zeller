@@ -1,10 +1,7 @@
-import { PricingRule } from './rules/Rule';
 import { productCatalog } from './productCatalog';
 
 export class Checkout {
   private items: Record<string, number> = {};
-
-  constructor(private rules: PricingRule[]) {}
 
   scan(sku: string): void {
     if (!productCatalog[sku]) {
@@ -20,10 +17,10 @@ export class Checkout {
       const product = productCatalog[sku];
       const regularTotal = product.price * qty;
 
-      // Try all rules and get the cheapest total
-      const discountedTotals = this.rules.map(rule =>
-        rule.apply(product, qty)
-      );
+      // Try all offer and get the cheapest total
+      const discountedTotals = product.offers?.map(offer =>
+        offer.calculatePrice(qty)
+      ) || [];
 
       const bestPrice = Math.min(regularTotal, ...discountedTotals);
       total += parseFloat(bestPrice.toFixed(2));

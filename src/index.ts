@@ -5,18 +5,40 @@ import { productCatalog } from './productCatalog';
 
 const { atv, ipd, vga } = productCatalog;
 
-const bulkRule = new BulkDiscountRule();
-bulkRule.addRule(ipd.sku, 4, 10); // iPad bulk discount
+const ipdBulkRule = new BulkDiscountRule({
+  sku: ipd.sku,
+  minQty: 3,
+  discountedPrice: 10, // Price per unit when buying 3 or more iPads
+});
 
-const multiBuyRule = new MultiBuyRule();
-multiBuyRule.addRule(atv.sku, 3, 2); // 3-for-2 Apple TV
+ipd.addOffer(ipdBulkRule);
 
-const checkout = new Checkout([bulkRule, multiBuyRule])
+const atvMultiBuyRule = new MultiBuyRule({
+  sku: atv.sku,
+  requiredQty: 3,
+  chargeQty: 2, // Pay for 2 Apple TVs when buying 3
+});
+
+atv.addOffer(atvMultiBuyRule);
+
+// Adding & removing offers for iPad For Testing
+const ipdBulkOffer2 = new BulkDiscountRule({
+  sku: ipd.sku,
+  minQty: 2,
+  discountedPrice: 1,
+});
+ipd.addOffer(ipdBulkOffer2);
+ipd.removeOffer(ipdBulkOffer2);
+
+const checkout = new Checkout()
 
 checkout.scan(atv.sku);
 checkout.scan(atv.sku);
 checkout.scan(atv.sku);
 checkout.scan(vga.sku);
+checkout.scan(ipd.sku);
+checkout.scan(ipd.sku);
+checkout.scan(ipd.sku);
 
 const actualTotal = checkout.total();
 

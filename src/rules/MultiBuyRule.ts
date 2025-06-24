@@ -1,30 +1,33 @@
 import { PricingRule } from './Rule';
-import { Product } from '../models/Product';
+import { productCatalog } from '../productCatalog';
 
 type RuleConfig = {
+  sku: string;
   requiredQty: number;
   chargeQty: number;
 };
 
 export class MultiBuyRule implements PricingRule {
-  private rules: Map<string, RuleConfig> = new Map();
+  sku: string;
+  requiredQty: number;
+  chargeQty: number;
 
-  addRule(sku: string, requiredQty: number, chargeQty: number): void {
-    this.rules.set(sku, { requiredQty, chargeQty });
+  constructor(config: RuleConfig) {
+    this.sku = config.sku;
+    this.requiredQty = config.requiredQty;
+    this.chargeQty = config.chargeQty;
   }
 
-  apply(item: Product, qty: number): number {
-    const sku = item.sku;
-    const rule = this.rules.get(sku);
-
-    if (!rule) {
-      return parseFloat((item.price * qty).toFixed(2));
+  calculatePrice(qty: number): number {
+    const product = productCatalog[this.sku];
+    if (!product) {
+      throw new Error(`Unknown SKU: ${this.sku}`);
     }
 
-    const sets = Math.floor(qty / rule.requiredQty);
-    const remainder = qty % rule.requiredQty;
-    const totalQtyToPay = sets * rule.chargeQty + remainder;
+    const sets = Math.floor(qty / this.requiredQty);
+    const remainder = qty % this.requiredQty;
+    const totalQtyToPay = sets * this.chargeQty + remainder;
 
-    return parseFloat((totalQtyToPay * item.price).toFixed(2));
+    return parseFloat((totalQtyToPay * product.price).toFixed(2));
   }
 }

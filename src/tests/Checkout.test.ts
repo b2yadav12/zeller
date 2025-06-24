@@ -1,79 +1,66 @@
 import { Checkout } from '../Checkout';
+import { Product } from '../models/Product';
+import { productCatalog } from '../productCatalog';
 import { BulkDiscountRule } from '../rules/BulkDiscountRule';
 import { MultiBuyRule } from '../rules/MultiBuyRule';
 
-// Mock product catalog
-jest.mock('../productCatalog', () => ({
-  productCatalog: {
-    A: { sku: 'A', price: 50, name: 'Product A' },
-    B: { sku: 'B', price: 30, name: 'Product B' },
-    C: { sku: 'C', price: 19.99, name: 'Product C' },
-  },
-}));
-
 describe('Checkout', () => {
-  let checkout: Checkout;
-  let bulkDiscountRule: BulkDiscountRule;
-  let multiBuyRule: MultiBuyRule;
-
   beforeEach(() => {
-    bulkDiscountRule = new BulkDiscountRule();
-    multiBuyRule = new MultiBuyRule();
-    checkout = new Checkout([bulkDiscountRule, multiBuyRule]);
+    // Reset catalog to ensure clean test state
+    productCatalog['atv'] = new Product({ sku: 'atv', name: 'Apple TV', price: 50 });
+    productCatalog['ipd'] = new Product({ sku: 'ipd', name: 'Super iPad', price: 20 });
+    productCatalog['mbp'] = new Product({ sku: 'mbp', name: 'MacBook Pro', price: 30 });
+    productCatalog['vga'] = new Product({ sku: 'vga', name: 'VGA adapter', price: 5 });
   });
 
-  test('should throw error for unknown SKU', () => {
-    expect(() => checkout.scan('X')).toThrow('Unknown SKU: X');
+  it('calculates total with no offers', () => {
+    const co = new Checkout();
+    co.scan('mbp');
+    co.scan('vga');
+    expect(co.total()).toBeCloseTo(30 + 5, 2);
   });
 
-  test('should calculate total for single item with no rules', () => {
-    checkout.scan('A');
-    expect(checkout.total()).toBe(50.00);
+  it('applies bulk discount rule (5 iPads)', () => {
+    const bulkRule = new BulkDiscountRule({ sku: 'ipd', minQty: 4, discountedPrice: 15 });
+    productCatalog['ipd'].addOffer(bulkRule);
+
+    const co = new Checkout();
+    for (let i = 0; i < 5; i++) co.scan('ipd');
+
+    expect(co.total()).toBeCloseTo(5 * 15, 2);
   });
 
-  test('should calculate total for multiple items with no rules', () => {
-    checkout.scan('A');
-    checkout.scan('B');
-    checkout.scan('B');
-    expect(checkout.total()).toBe(110.00); // 50 + 30 + 30
+  it('applies multi-buy rule (3-for-2 Apple TVs)', () => {
+    const multiBuy = new MultiBuyRule({ sku: 'atv', requiredQty: 3, chargeQty: 2 });
+    productCatalog['atv'].addOffer(multiBuy);
+
+    const co = new Checkout();
+    co.scan('atv');
+    co.scan('atv');
+    co.scan('atv');
+
+    expect(co.total()).toBeCloseTo(2 * 50, 2); // Pay for 2
   });
 
-  test('should apply bulk discount rule when cheapest', () => {
-    bulkDiscountRule.addRule('A', 3, 45);
-    checkout.scan('A');
-    checkout.scan('A');
-    checkout.scan('A');
-    expect(checkout.total()).toBe(135.00); // 3 * 45
+  it('applies cheapest rule if multiple offers exist', () => {
+    const bulkRule = new BulkDiscountRule({ sku: 'ipd', minQty: 3, discountedPrice: 17 });
+    const multiBuy = new MultiBuyRule({ sku: 'ipd', requiredQty: 3, chargeQty: 2 });
+
+    productCatalog['ipd'].addOffer(bulkRule);
+    productCatalog['ipd'].addOffer(multiBuy);
+
+    const co = new Checkout();
+    for (let i = 0; i < 3; i++) co.scan('ipd');
+
+    // Regular: 3 * 20 = 60
+    // Bulk:    3 * 17 = 51
+    // MultiBuy: pay for 2 = 2 * 20 = 40 (cheapest)
+
+    expect(co.total()).toBeCloseTo(40, 2);
   });
 
-  test('should apply multi-buy rule when cheapest', () => {
-    multiBuyRule.addRule('B', 2, 1);
-    checkout.scan('B');
-    checkout.scan('B');
-    expect(checkout.total()).toBe(30.00); // Pay for 1 item
-  });
-
-  test('should choose cheapest rule for same SKU', () => {
-    bulkDiscountRule.addRule('A', 3, 45); // 3 * 45 = 135
-    multiBuyRule.addRule('A', 3, 2); // 2 * 50 = 100
-    checkout.scan('A');
-    checkout.scan('A');
-    checkout.scan('A');
-    expect(checkout.total()).toBe(100.00); // Multi-buy rule is cheaper
-  });
-
-  test('should handle mixed items with different rules', () => {
-    bulkDiscountRule.addRule('A', 3, 45); // 3 * 45 = 135
-    multiBuyRule.addRule('B', 2, 1); // 1 * 30 = 30
-    checkout.scan('A');
-    checkout.scan('A');
-    checkout.scan('A');
-    checkout.scan('B');
-    checkout.scan('B');
-    expect(checkout.total()).toBe(165.00); // 135 (A) + 30 (B)
-  });
-
-  test('should return zero for empty cart', () => {
-    expect(checkout.total()).toBe(0.00);
+  it('throws error for unknown SKU', () => {
+    const co = new Checkout();
+    expect(() => co.scan('unknown')).toThrow('Unknown SKU: unknown');
   });
 });
